@@ -17,7 +17,14 @@ This macro sends periodic sensor data from your Webex Device to a telemetry serv
 
 ## Validation
 
-This Macro was developed and tested on a Webex Codec Pro with Webex Room Navigator and a Touch 10 to verify the exist PWA mode feature. Other combinations of devices e.g. Desk/Board devices paired with a Navigator should also work but haven't been tested at this time.
+Validated Hardwares:
+
+* Room Kit Pro
+* Desk Pro
+* Desk Hub
+* Room Kit
+
+This macro should work on other Webex Devices but has not been validated at this time.
 
 ## Support
 
