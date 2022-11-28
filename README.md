@@ -17,7 +17,7 @@ This macro sends periodic sensor data from your Webex Device to a telemetry serv
 
 ## Validation
 
-Validated Hardwares:
+Validated Hardware:
 
 * Room Kit Pro
 * Desk Pro
