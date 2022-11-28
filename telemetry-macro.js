@@ -17,11 +17,11 @@ or implied.
  *                    	wimills@cisco.com
  *                    	Cisco Systems
  * 
- * Version: 1-0-0
- * Released: 10/27/22
+ * Version: 1-0-1
+ * Released: 11/28/22
  * 
- * This maco sends perodic telemetry data of all your Webex Devices sensors
- * and can send imediate updates when specific status changes or events occur.
+ * This macro sends perodic telemetry data of all your Webex Devices sensors
+ * and can send immediate updates when specific status changes or events occur.
  * 
  * Full Readme and source code availabel on Github:
  * https://github.com/wxsd-sales/telemetry-macro
@@ -60,7 +60,7 @@ const config = {
       SoundLevelA: true,
       T3Alarm: true
     },
-    periherals: { 
+    periherals: {
       AirQualityIndex: true,      // If a Inside room navigator is present
       AmbientTemperature: true,   // Is sensor values can be included and overwrite 
       RelativeHumidity: true      // the main devices readings if it has the same sensors
@@ -89,6 +89,7 @@ async function main() {
 main();
 
 async function sendTelemetry() {
+  console.log('Sending Telemetry Event');
   let payload = {}
   payload.id = id;
   payload.status = await getStatus();
@@ -98,59 +99,75 @@ async function sendTelemetry() {
 async function getStatus() {
   let status = {}
 
-  const roomAnalytics = await xapi.Status.RoomAnalytics.get();
-  const peripherals = await xapi.Status.Peripherals.get();
-  const state = await xapi.Status.SystemUnit.State.get();
+  let roomAnalytics, peripherals, state;
 
-  if(roomAnalytics.hasOwnProperty('PeopleCount'))
-    if(config.sensors.device.PeopleCountCurrent)
+  try {
+    roomAnalytics = await xapi.Status.RoomAnalytics.get();
+  } catch (e) {
+    console.error('Unable to get Room Analytics Status:', e.message);
+  }
+
+  try {
+    peripherals = await xapi.Status.Peripherals.get();
+  } catch (e) {
+    console.error('Unable to get Peripherals Status:', e);
+  }
+
+  try {
+    state = await xapi.Status.SystemUnit.State.get();
+  } catch (e) {
+    console.error('Unable to jget SystemUnit State:', e.message);
+  }
+
+  if (roomAnalytics.hasOwnProperty('PeopleCount'))
+    if (config.sensors.device.PeopleCountCurrent)
       status.PeopleCount = roomAnalytics.PeopleCount
 
-  if(roomAnalytics.hasOwnProperty('PeoplePresence'))
-    if(config.sensors.device.PeoplePresence)
+  if (roomAnalytics.hasOwnProperty('PeoplePresence'))
+    if (config.sensors.device.PeoplePresence)
       status.PeoplePresence = roomAnalytics.PeoplePresence
 
-  if(roomAnalytics.hasOwnProperty('AmbientNoise'))
-    if(config.sensors.device.AmbientNoiseLevelA)
+  if (roomAnalytics.hasOwnProperty('AmbientNoise'))
+    if (config.sensors.device.AmbientNoiseLevelA)
       status.AmbientNoiseLevelA = roomAnalytics.AmbientNoise.Level.A
-  
-  if(roomAnalytics.hasOwnProperty('ReverberationTime'))
-    if(config.sensors.device.ReverberationTime)
+
+  if (roomAnalytics.hasOwnProperty('ReverberationTime'))
+    if (config.sensors.device.ReverberationTime)
       status.ReverberationTime = roomAnalytics.ReverberationTime
 
-  if(roomAnalytics.hasOwnProperty('T3Alarm'))
-    if(config.sensors.device.T3Alarm)
+  if (roomAnalytics.hasOwnProperty('T3Alarm'))
+    if (config.sensors.device.T3Alarm)
       status.T3Alarm = roomAnalytics.T3Alarm
 
 
-  if(peripherals.hasOwnProperty('ConnectedDevice')) {
+  if (peripherals.hasOwnProperty('ConnectedDevice')) {
     const navs = peripherals.ConnectedDevice.filter(cd => {
-      if(cd.hasOwnProperty('Location'))
+      if (cd.hasOwnProperty('Location'))
         return false;
 
       return (cd.Name == 'Cisco Webex Room Navigator' && cd.Location == 'InsideRoom')
     })
 
-    if(navs.length < 0) {
-      if(config.sensors.peripherals.AirQualityIndex)
+    if (navs.length < 0) {
+      if (config.sensors.peripherals.AirQualityIndex)
         status.AirQuality = navs[0].RoomAnalytics.AirQuality.Index
 
-      if(config.sensors.peripherals.RelativeHumidity)
+      if (config.sensors.peripherals.RelativeHumidity)
         status.RelativeHumidity = navs[0].RoomAnalytics.RelativeHumidity
 
-      if(config.sensors.peripherals.AmbientTemperature)
+      if (config.sensors.peripherals.AmbientTemperature)
         status.AmbientTemperature = navs[0].RoomAnalytics.AmbientTemperature
     }
   }
 
-  if(state.hasOwnProperty('NumberOfActiveCalls'))
-    if(config.status.NumberOfActiveCalls)
+  if (state.hasOwnProperty('NumberOfActiveCalls'))
+    if (config.status.NumberOfActiveCalls)
       status.NumberOfActiveCalls = state.NumberOfActiveCalls
 
   return status
 }
 
-async function processEvent(event, type){
+async function processEvent(event, type) {
   let payload = {}
   payload[type] = event;
   payload.id = id;
@@ -159,89 +176,157 @@ async function processEvent(event, type){
 }
 
 function subscribeToChanges() {
-  if(config.status.NumberOfActiveCalls) {
-    xapi.Status.SystemUnit.State.NumberOfActiveCalls
-      .on(sendTelemetry);
+
+  console.log('Subscribing to Status and Events');
+
+  if (config.status.NumberOfActiveCalls) {
+    try {
+    xapi.Status.SystemUnit.State.NumberOfActiveCalls.on(sendTelemetry)
+    } catch (e) { console.error('Unable to get subscribe to Number of Active Calls:', e.message) }
   }
-  if(config.event.BootEvent) {
-    xapi.Event.BootEvent
-      .on(e => processEvent(e, 'BootEvent'));
+  if (config.event.BootEvent) {
+    try {
+      xapi.Event.BootEvent.on(e => processEvent(e, 'BootEvent'))
+    } catch (e) { console.error('Unable to get subscribe to Boot Events:', e.message) }
+
   }
-  if(config.event.PresentationStarted) {
-    xapi.Event.PresentationStarted
-    .on(e => processEvent(e, 'PresentationStarted'));
+  if (config.event.PresentationStarted) {
+    try {
+      xapi.Event.PresentationStarted.on(e => processEvent(e, 'PresentationStarted'))
+    } catch (e) { console.error('Unable to get subscribe to Presentation Started Event:', e.message) }
   }
-  if(config.event.PresentationStopped) {
-    xapi.Event.PresentationStopped
-    .on(e => processEvent(e, 'PresentationStopped'));
+  if (config.event.PresentationStopped) {
+    try {
+      xapi.Event.PresentationStopped.on(e => processEvent(e, 'PresentationStopped'))
+    } catch (e) { console.error('Unable to get subscribe to Presentation Stopped Event:', e.message) }
   }
 }
 
 async function getIdentifications() {
-    if(config.id.IPAddress)
-      id.IPAddress = await await xapi.Status.Network[1].IPv4.Address.get();
 
-    if(config.id.IPAddressV6)
+  console.log('Getting Device Identifications')
+
+  if (config.id.IPAddress) {
+    try {
+      id.IPAddress = await xapi.Status.Network[1].IPv4.Address.get();
+    } catch (e) {
+      console.error('Unable to get IPv4 Address:', e.message);
+    }
+  }
+
+  if (config.id.IPAddressV6) {
+    try {
       id.IPAddressV6 = await xapi.Status.Network[1].IPv6.Address.get()
+    } catch (e) {
+      console.error('Unable to get IPv6 Address:', e.message);
+    }
+  }
 
-    if(config.id.IPAddressV6 || config.id.IPAddressV6)
+  if (config.id.IPAddressV6 || config.id.IPAddressV6)
+    try {
       xapi.Status.Network.on(getIdentifications);
+    } catch (e) {
+      console.error('Unable to subscribe to Network Status changes', e.message);
+    }
 
-    if(config.id.MACAddress) 
+  if (config.id.MACAddress) {
+    try {
       id.MACAddress = await xapi.Status.Network[1].Ethernet.MacAddress.get()
-  
-    if(config.id.ProductID)
+    } catch (e) {
+      console.error('Unable to Ethernet Mac Address', e.message);
+    }
+  }
+
+  if (config.id.ProductID) {
+    try {
       id.ProductID = await xapi.Status.SystemUnit.ProductId.get()
+    } catch (e) {
+      console.error('Unable to get System Unit Product Id', e.message)
+    }
+  }
 
-    if(config.id.ProductType)
+  if (config.id.ProductType) {
+    try {
       id.ProductType = await xapi.Status.SystemUnit.ProductType.get()
+    } catch (e) {
+      console.error('Unable to get System Unit Product Type:', e.message)
+    }
+  }
 
-    if(config.id.SWVersion)
+  if (config.id.SWVersion) {
+    try {
       id.SWVersion = await xapi.Status.SystemUnit.Software.Version.get()
+    } catch (e) {
+      console.error('Unable to get System Unit Software Version:', e.message)
+    }
+  }
 
-    if(config.id.SerialNumber)
+  if (config.id.SerialNumber) {
+    try {
       id.SerialNumber = await xapi.Status.SystemUnit.Hardware.Module.SerialNumber.get()
+    } catch (e) {
+      console.error('Unable to get System Unit Hardware Module Serial Number:', e.message)
+    }
+  }
 
-    if(config.id.SystemName)
+  if (config.id.SystemName) {
+    try {
       id.SystemName = await xapi.Status.SystemUnit.Software.Name.get()
-  
-    if(config.id.DeviceId)
+    } catch (e) {
+      console.error('Unable to get System Unit Software Name:', e.message)
+    }
+  }
+
+  if (config.id.DeviceId) {
+    try {
       id.DeviceId = await xapi.Status.Webex.DeveloperId.get()
-    
+    } catch (e) {
+      console.error('Unable to get Webex Developer ID:', e.message)
+    }
+  }
+
 }
 
 function applyConfiguration() {
 
-  xapi.Config.HttpClient.Mode
-    .set('On');
+  console.log('Applying Configurations')
 
-  xapi.Config.HttpClient.AllowInsecureHTTPS
-    .set('True');
+  xapi.Config.HttpClient.Mode.set('On')
+    .catch(e => console.error('Unable to set HTTP Client', e.message))
 
-  if(xapi.Config.RoomAnalytics.PeopleCountOutOfCall === 'function')
-    xapi.Config.RoomAnalytics.PeopleCountOutOfCall
-      .set(config.sensors.device.PeopleCountCurrent ? 'On' : 'Off');
-  
-  if(xapi.Config.RoomAnalytics.PeoplePresenceDetector === 'function')
-    xapi.Config.RoomAnalytics.PeoplePresenceDetector
-      .set(config.sensors.device.PeoplePresence ? 'On' : 'Off');
-  
-  if(xapi.Config.RoomAnalytics.AmbientNoiseEstimation.Mode === 'function')
-    xapi.Config.RoomAnalytics.AmbientNoiseEstimation.Mode
-      .set(config.sensors.device.AmbientNoiseLevelA ? 'On' : 'Off');
-  
-  if(xapi.Config.RoomAnalytics.ReverberationTime.Mode === 'function')
-    xapi.Config.RoomAnalytics.ReverberationTime.Mode
-      .set(config.sensors.device.ReverberationTime ? 'On' : 'Off');
-  
-  if(xapi.Config.RoomAnalytics.T3AlarmDetection.Mode === 'function')
-    xapi.Config.RoomAnalytics.T3AlarmDetection.Mode
-      .set(config.sensors.device.T3Alarm ? 'On' : 'Off');
+  xapi.Config.HttpClient.AllowInsecureHTTPS.set('True')
+    .catch(e => console.error('Unable to set Allow Insecure HTTPS', e.message))
+
+  if (xapi.Config.RoomAnalytics.PeopleCountOutOfCall === 'function') {
+    xapi.Config.RoomAnalytics.PeopleCountOutOfCall.set(config.sensors.device.PeopleCountCurrent ? 'On' : 'Off')
+      .catch(e => console.error('Unable to set People Count Out of Call', e.message))
+  }
+
+  if (xapi.Config.RoomAnalytics.PeoplePresenceDetector === 'function') {
+    xapi.Config.RoomAnalytics.PeoplePresenceDetector.set(config.sensors.device.PeoplePresence ? 'On' : 'Off')
+      .catch(e => console.error('Unable to set People Presence Detector', e.message))
+  }
+
+  if (xapi.Config.RoomAnalytics.AmbientNoiseEstimation.Mode === 'function') {
+    xapi.Config.RoomAnalytics.AmbientNoiseEstimation.Mode.set(config.sensors.device.AmbientNoiseLevelA ? 'On' : 'Off')
+      .catch(e => console.error('Unable to set Ambient Noise Estimation mode', e.message))
+  }
+
+  if (xapi.Config.RoomAnalytics.ReverberationTime.Mode === 'function') {
+    xapi.Config.RoomAnalytics.ReverberationTime.Mode.set(config.sensors.device.ReverberationTime ? 'On' : 'Off')
+      .catch(e => console.error('Unable to set ReverberationTime mode', e.message))
+  }
+
+  if (xapi.Config.RoomAnalytics.T3AlarmDetection.Mode === 'function') {
+    xapi.Config.RoomAnalytics.T3AlarmDetection.Mode.set(config.sensors.device.T3Alarm ? 'On' : 'Off')
+      .catch(e => console.error('Unable to set T3AlarmDetection mode', e.message))
+  }
 }
 
 function sendPaylod(payload) {
   console.log(payload);
   const headers = ['Content-type: application/json', 'Authorization: Bearer ' + config.accessToken];
+
   xapi.Command.HttpClient.Post({
     Header: headers,
     ResultBody: 'PlainText',
@@ -249,5 +334,6 @@ function sendPaylod(payload) {
   },
     JSON.stringify(payload))
     .then(r => console.log('Status: ' + r.StatusCode))
-    .catch(e => console.log('Error: ' + JSON.stringify(e)));
+    .catch(e => console.log('Error: ' + JSON.stringify(e)))
+
 }
