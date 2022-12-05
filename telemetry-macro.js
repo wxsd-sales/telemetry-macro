@@ -17,7 +17,7 @@ or implied.
  *                    	wimills@cisco.com
  *                    	Cisco Systems
  * 
- * Version: 1-0-1
+ * Version: 1-0-2
  * Released: 11/28/22
  * 
  * This macro sends perodic telemetry data of all your Webex Devices sensors
@@ -86,7 +86,8 @@ async function main() {
   subscribeToChanges();
   setInterval(sendTelemetry, config.intervalTime);
 }
-main();
+
+setTimeout(main, 5000); 
 
 async function sendTelemetry() {
   console.log('Sending Telemetry Event');
@@ -328,6 +329,7 @@ function sendPaylod(payload) {
   const headers = ['Content-type: application/json', 'Authorization: Bearer ' + config.accessToken];
 
   xapi.Command.HttpClient.Post({
+    AllowInsecureHTTPS: 'True',
     Header: headers,
     ResultBody: 'PlainText',
     Url: config.telemetryServer
