@@ -17,7 +17,7 @@ or implied.
  *                    	wimills@cisco.com
  *                    	Cisco Systems
  * 
- * Version: 1-0-2
+ * Version: 1-0-3
  * Released: 11/28/22
  * 
  * This macro sends perodic telemetry data of all your Webex Devices sensors
@@ -35,7 +35,7 @@ import xapi from 'xapi';
 
 
 const config = {
-  telemetryServer: 'https://<your telemetry server address>',
+  telemetryServer: 'https://< your telemetry server address>',
   accessToken: '<your webhooks access token>',  // Your telemetry services Bearer Access Token
   intervalTime: 120000,    // Specify the delay between telemetry events (milliseconds)
   id: {       // Sepecify which identification do you want in the payload
@@ -67,9 +67,11 @@ const config = {
     }
   },
   status: {     //Specify which status you want to monitor on the device
-    NumberOfActiveCalls: true
+    NumberOfActiveCalls: true,
+    PeoplePresence: true,
+    PeopleCountCurrent: true
   },
-  event: {
+  event: {    //Specify which events you want to monitor on the device
     BootEvent: true,
     PresentationStarted: true,
     PresentationStopped: true
@@ -84,10 +86,11 @@ async function main() {
   await applyConfiguration();
   await getIdentifications();
   subscribeToChanges();
+  sendTelemetry();
   setInterval(sendTelemetry, config.intervalTime);
 }
 
-setTimeout(main, 5000); 
+setTimeout(main, 2000);
 
 async function sendTelemetry() {
   console.log('Sending Telemetry Event');
@@ -176,20 +179,33 @@ async function processEvent(event, type) {
   sendPaylod(payload);
 }
 
-function subscribeToChanges() {
 
+
+function subscribeToChanges() {
   console.log('Subscribing to Status and Events');
 
+  // Subscribe to Status changes
   if (config.status.NumberOfActiveCalls) {
     try {
-    xapi.Status.SystemUnit.State.NumberOfActiveCalls.on(sendTelemetry)
+      xapi.Status.SystemUnit.State.NumberOfActiveCalls.on(e => processEvent(e, 'NumberOfActiveCalls'))
     } catch (e) { console.error('Unable to get subscribe to Number of Active Calls:', e.message) }
   }
+  if (config.status.PeoplePresence) {
+    try {
+      xapi.Status.RoomAnalytics.PeoplePresence.on(e => processEvent(e, 'PeoplePresence'))
+    } catch (e) { console.error('Unable to get subscribe to PeoplePresence Status:', e.message) }
+  }
+  if (config.status.PeopleCountCurrent) {
+    try {
+      xapi.Status.RoomAnalytics.PeopleCount.Current.on(e => processEvent(e, 'PeopleCountCurrent'))
+    } catch (e) { console.error('Unable to get subscribe to PeoplePresence Current Status:', e.message) }
+  }
+
+  // Subscribe to Events changes
   if (config.event.BootEvent) {
     try {
       xapi.Event.BootEvent.on(e => processEvent(e, 'BootEvent'))
     } catch (e) { console.error('Unable to get subscribe to Boot Events:', e.message) }
-
   }
   if (config.event.PresentationStarted) {
     try {
@@ -202,6 +218,8 @@ function subscribeToChanges() {
     } catch (e) { console.error('Unable to get subscribe to Presentation Stopped Event:', e.message) }
   }
 }
+
+
 
 async function getIdentifications() {
 
